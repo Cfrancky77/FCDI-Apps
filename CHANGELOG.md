@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.1.1
+
+- Logo FCDI : icône de l'application et en-tête (images provisoires, à remplacer par des versions de meilleure qualité).
+
 ## 0.1.0
 
 Première version.

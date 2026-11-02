@@ -58,6 +58,7 @@ pub struct Launcher {
     self_progress: Option<(u64, u64)>,
     self_updated: bool,
     start_minimized: bool,
+    banner: Option<TextureHandle>,
 }
 
 fn hex(c: &str) -> Option<Color32> {
@@ -144,6 +145,7 @@ impl Launcher {
             self_progress: None,
             self_updated: false,
             start_minimized: minimized,
+            banner: load_banner(&cc.egui_ctx),
         };
         me.load_icons();
         me.refresh();
@@ -365,6 +367,14 @@ impl Launcher {
     }
 }
 
+/// Logo FCDI de l'en-tête (fichier fourni par Franck, à remplacer par une version de meilleure qualité).
+fn load_banner(ctx: &egui::Context) -> Option<TextureHandle> {
+    let img = image::load_from_memory(include_bytes!("../assets/banniere.png")).ok()?.to_rgba8();
+    let size = [img.width() as usize, img.height() as usize];
+    let color = egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw());
+    Some(ctx.load_texture("banniere", color, egui::TextureOptions::LINEAR))
+}
+
 fn load_texture(ctx: &egui::Context, id: &str, bytes: &[u8]) -> Option<TextureHandle> {
     let img = image::load_from_memory(bytes).ok()?.resize(128, 128, image::imageops::FilterType::Lanczos3).to_rgba8();
     let size = [img.width() as usize, img.height() as usize];
@@ -539,7 +549,13 @@ impl eframe::App for Launcher {
             .frame(Frame::new().fill(ui.visuals().panel_fill).inner_margin(Margin::symmetric(16, 10)))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("FCDI APPS").size(20.0).strong().color(strong(ui)));
+                    if let Some(b) = &self.banner {
+                        let h = 26.0;
+                        ui.add(egui::Image::from_texture(b).fit_to_exact_size(Vec2::new(h * b.size()[0] as f32 / b.size()[1] as f32, h)));
+                        ui.label(RichText::new("APPS").size(20.0).strong().color(strong(ui)));
+                    } else {
+                        ui.label(RichText::new("FCDI APPS").size(20.0).strong().color(strong(ui)));
+                    }
                     ui.add_space(14.0);
                     ui.label(mono(t.subtitle, 10.5).color(muted(ui)));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
