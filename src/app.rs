@@ -349,7 +349,18 @@ impl Launcher {
                     let tex = load_texture(&self.ctx, &id, &bytes);
                     self.states.entry(id).or_default().icon = tex;
                 }
-                Msg::SelfReleases(r) => self.self_releases = Some(r),
+                Msg::SelfReleases(r) => {
+                    self.self_releases = Some(r);
+                    // Mise à jour automatique du lanceur (seulement s'il tourne en AppImage).
+                    if self.cfg.auto_install
+                        && !self.self_updated
+                        && self.self_progress.is_none()
+                        && std::env::var_os("APPIMAGE").is_some()
+                        && self.self_update_available().is_some()
+                    {
+                        self.update_self();
+                    }
+                }
                 Msg::SelfUpdated(r) => {
                     self.self_progress = None;
                     match r {
@@ -359,6 +370,11 @@ impl Launcher {
                 }
             }
         }
+    }
+
+    /// Nouvelle version du lanceur, si elle est plus récente que celle qui tourne.
+    fn self_update_available(&self) -> Option<Release> {
+        self.self_latest().filter(|r| net::cmp_versions(&r.version(), VERSION) == std::cmp::Ordering::Greater)
     }
 
     fn self_latest(&self) -> Option<Release> {
@@ -609,6 +625,51 @@ impl eframe::App for Launcher {
                 });
                 ui.add_space(8.0);
 
+                // Bandeau « nouvelle version du lanceur »
+                if self.self_updated || self.self_update_available().is_some() {
+                    let mut do_update = false;
+                    let mut do_relaunch = false;
+                    Frame::new()
+                        .fill(Color32::from_rgb(0x2f, 0x6f, 0xe0).gamma_multiply(0.18))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(0x2f, 0x6f, 0xe0)))
+                        .inner_margin(Margin::symmetric(14, 8))
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.horizontal(|ui| {
+                                if self.self_updated {
+                                    ui.label(RichText::new(t.self_done).color(strong(ui)));
+                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                        if action_button(ui, t.relaunch, true, 140.0).clicked() {
+                                            do_relaunch = true;
+                                        }
+                                    });
+                                } else if let Some(rel) = self.self_update_available() {
+                                    let v = format!("v{VERSION} -> v{}", rel.version());
+                                    ui.label(RichText::new(t.self_new.replace("{}", &v)).color(strong(ui)));
+                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                        if self.self_progress.is_some() {
+                                            ui.label(mono(t.downloading, 10.0).color(muted(ui)));
+                                            ui.spinner();
+                                        } else if action_button(ui, t.update, true, 160.0).clicked() {
+                                            do_update = true;
+                                        }
+                                    });
+                                }
+                            });
+                        });
+                    ui.add_space(8.0);
+                    if do_update {
+                        self.update_self();
+                    }
+                    if do_relaunch {
+                        if let Some(exe) = system::self_path() {
+                            if system::launch(&exe).is_ok() {
+                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                        }
+                    }
+                }
+
                 let q = self.search.to_lowercase();
                 let apps: Vec<AppEntry> = self
                     .catalog
@@ -796,7 +857,7 @@ impl Launcher {
             Some(i) if self.has_update(app).is_some() => (
                 t.update_badge,
                 Color32::from_rgb(0xf5, 0x9e, 0x0b),
-                format!("{} → {}", i.version, latest.map(|r| r.version()).unwrap_or_default()),
+                format!("{} -> {}", i.version, latest.map(|r| r.version()).unwrap_or_default()),
                 date,
             ),
             Some(i) => (t.installed, Color32::from_rgb(0x9c, 0xa3, 0xaf), i.version.clone(), date),
@@ -1041,7 +1102,7 @@ impl Launcher {
                             ui.label(t.s_launcher_version);
                             match &self_latest {
                                 Some(rel) if net::cmp_versions(&rel.version(), VERSION) == std::cmp::Ordering::Greater => {
-                                    ui.label(mono(format!("v{VERSION} → v{}", rel.version()), 12.0));
+                                    ui.label(mono(format!("v{VERSION} -> v{}", rel.version()), 12.0));
                                 }
                                 _ => {
                                     ui.label(mono(format!("v{VERSION} ({})", t.s_latest), 12.0));
