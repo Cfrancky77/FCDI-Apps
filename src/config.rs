@@ -34,6 +34,8 @@ pub struct Config {
     pub notify: bool,
     pub prereleases: bool,
     pub autostart: bool,
+    /// Fermer la fenêtre garde le lanceur actif dans la zone de notification (si le bureau en a une).
+    pub keep_in_tray: bool,
     pub desktop_entries: bool,
     pub show_hidden: bool,
     pub grid: bool,
@@ -60,6 +62,7 @@ impl Default for Config {
             notify: true,
             prereleases: false,
             autostart: false,
+            keep_in_tray: true,
             desktop_entries: true,
             show_hidden: false,
             grid: false,

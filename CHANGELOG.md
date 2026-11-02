@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.1.3
+
+- Icône dans la zone de notification : fermer la fenêtre garde le lanceur actif (réglage « Rester actif dans la zone de notification à la fermeture de la fenêtre », activé par défaut) ; clic sur l'icône ou « Ouvrir FCDI Apps » rouvre la fenêtre, « Quitter » arrête le lanceur.
+- Les vérifications de mise à jour continuent fenêtre cachée.
+- Sans zone de notification sur le bureau, fermer la fenêtre quitte comme avant. Au démarrage automatique (`--minimized`), la fenêtre démarre cachée si l'icône est disponible.
+
 ## 0.1.2
 
 - Icône de l'application : logo sur tuile blanche arrondie, plus propre que le détourage sur fond transparent (provisoire, en attendant un logo vectoriel).
