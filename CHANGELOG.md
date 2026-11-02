@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.1.2
+
+- Icône de l'application : logo sur tuile blanche arrondie, plus propre que le détourage sur fond transparent (provisoire, en attendant un logo vectoriel).
+
 ## 0.1.1
 
 - Logo FCDI : icône de l'application et en-tête (images provisoires, à remplacer par des versions de meilleure qualité).
