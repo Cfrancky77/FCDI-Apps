@@ -1,0 +1,17 @@
+{
+  "apps": [
+    {
+      "id": "luminux-ia",
+      "name": "Luminux",
+      "accent": " IA",
+      "description": "Éditeur photo non destructif avec outils IA",
+      "description_en": "Non-destructive photo editor with AI tools",
+      "publisher": "FCDI",
+      "repo": "Cfrancky77/Luminux-IA-public",
+      "asset": "x86_64.AppImage",
+      "icon": "https://raw.githubusercontent.com/Cfrancky77/Luminux-IA-public/main/packaging/luminux.png",
+      "website": "https://github.com/Cfrancky77/Luminux-IA-public",
+      "color": "#F2A33A"
+    }
+  ]
+}

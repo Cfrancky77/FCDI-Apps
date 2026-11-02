@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=FCDI Apps
+Comment=Installer, mettre à jour et lancer les applications FCDI
+Exec=fcdi-apps
+Icon=fcdi-apps
+Terminal=false
+Categories=Utility;
