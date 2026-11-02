@@ -5,6 +5,7 @@ use crate::config::{Config, Installed, Theme};
 use crate::i18n::{Lang, Tr, tr};
 use crate::net::{self, Release};
 use crate::system;
+use crate::tray::{self, TrayCmd};
 use eframe::egui::{
     self, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Sense, Stroke, TextureHandle, Vec2,
 };
@@ -59,6 +60,10 @@ pub struct Launcher {
     self_updated: bool,
     start_minimized: bool,
     banner: Option<TextureHandle>,
+    tray: Option<ksni::blocking::Handle<tray::FcdiTray>>,
+    tray_rx: Receiver<TrayCmd>,
+    /// Vrai quand l'arrêt est voulu (menu Quitter, bouton Quitter, relance) : la fermeture ne doit pas se cacher.
+    quitting: bool,
 }
 
 fn hex(c: &str) -> Option<Color32> {
@@ -146,7 +151,13 @@ impl Launcher {
             self_updated: false,
             start_minimized: minimized,
             banner: load_banner(&cc.egui_ctx),
+            tray: None,
+            tray_rx: channel().1,
+            quitting: false,
         };
+        let (ttx, trx) = channel();
+        me.tray = tray::start(ttx, cc.egui_ctx.clone(), me.t().tray_open, me.t().tray_quit);
+        me.tray_rx = trx;
         me.load_icons();
         me.refresh();
         me
@@ -544,18 +555,59 @@ enum Action {
     ToggleHide(String),
 }
 
+impl Launcher {
+    /// Cache la fenêtre (X11) ou la réduit (Wayland, où une fenêtre ne peut pas se cacher soi-même).
+    fn hide_window(&self, ctx: &egui::Context) {
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var("XDG_SESSION_TYPE").as_deref() != Ok("x11") {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        } else {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+    }
+
+    fn show_window(&self, ctx: &egui::Context) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
+    fn quit(&mut self, ctx: &egui::Context) {
+        self.quitting = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+}
+
 impl eframe::App for Launcher {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = ui.ctx().clone();
+    /// Tourne aussi quand la fenêtre est cachée : vérifications de mise à jour et commandes de l'icône.
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.start_minimized {
             self.start_minimized = false;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            if self.tray.is_some() && self.cfg.keep_in_tray {
+                self.hide_window(ctx);
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            }
+        }
+        while let Ok(cmd) = self.tray_rx.try_recv() {
+            match cmd {
+                TrayCmd::Show => self.show_window(ctx),
+                TrayCmd::Quit => self.quit(ctx),
+            }
         }
         self.handle_messages();
         if self.cfg.auto_check && self.pending == 0 && self.last_check.is_some_and(|t| t.elapsed() > CHECK_EVERY) {
             self.refresh();
         }
         ctx.request_repaint_after(Duration::from_secs(30));
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        // Fermer la fenêtre : rester dans la zone de notification si elle est disponible.
+        if ctx.input(|i| i.viewport().close_requested()) && !self.quitting && self.cfg.keep_in_tray && self.tray.is_some() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.hide_window(&ctx);
+        }
 
         let t = self.t();
         let mut actions: Vec<Action> = Vec::new();
@@ -664,7 +716,7 @@ impl eframe::App for Launcher {
                     if do_relaunch {
                         if let Some(exe) = system::self_path() {
                             if system::launch(&exe).is_ok() {
-                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                                self.quit(ui.ctx());
                             }
                         }
                     }
@@ -1051,6 +1103,7 @@ impl Launcher {
         let mut close = false;
         let mut autostart_changed = false;
         let mut update_self = false;
+        let mut quit_now = false;
         let self_latest = self.self_latest();
         let modal = egui::Modal::new(egui::Id::unique("settings")).show(&ctx, |ui| {
             ui.set_width(860.0);
@@ -1165,6 +1218,11 @@ impl Launcher {
                             changed = true;
                             autostart_changed = true;
                         }
+                        if self.tray.is_some() {
+                            changed |= ui.checkbox(&mut self.cfg.keep_in_tray, t.s_tray).changed();
+                        } else {
+                            ui.label(RichText::new(t.s_tray_off).size(11.0).color(muted(ui)));
+                        }
                         changed |= ui.checkbox(&mut self.cfg.desktop_entries, t.s_desktop_entries).changed();
                     });
                 });
@@ -1172,7 +1230,7 @@ impl Launcher {
             ui.separator();
             ui.horizontal(|ui| {
                 if action_button(ui, t.quit, false, 200.0).clicked() {
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    quit_now = true;
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if action_button(ui, t.done, true, 110.0).clicked() {
@@ -1201,6 +1259,9 @@ impl Launcher {
                     system::remove_desktop_entry(id);
                 }
             }
+        }
+        if quit_now {
+            self.quit(&ctx);
         }
         if update_self {
             self.update_self();
