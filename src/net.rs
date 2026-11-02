@@ -78,12 +78,73 @@ impl Release {
     }
 }
 
-/// Releases publiées d'un dépôt, de la plus récente à la plus ancienne.
-pub fn releases(repo: &str) -> Result<Vec<Release>> {
-    let text = get_string(&format!("https://api.github.com/repos/{repo}/releases?per_page=50"))?;
-    let mut list: Vec<Release> = serde_json::from_str(&text)?;
+/// Cache disque des Releases : le corps JSON et son ETag. Une requête « rien de nouveau » (HTTP 304)
+/// ne compte pas dans la limite de 60 requêtes par heure de l'API GitHub.
+fn cache_files(repo: &str) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    let dir = dirs::cache_dir()?.join("fcdi-apps").join("releases");
+    let name = repo.replace('/', "__");
+    Some((dir.join(format!("{name}.json")), dir.join(format!("{name}.etag"))))
+}
+
+fn parse_releases(text: &str) -> Result<Vec<Release>> {
+    let mut list: Vec<Release> = serde_json::from_str(text)?;
     list.retain(|r| !r.draft);
     Ok(list)
+}
+
+fn fetch_releases(url: &str, etag: Option<&str>) -> Result<Option<(String, Option<String>)>> {
+    let mut req = request(url);
+    if let Some(e) = etag {
+        req = req.header("If-None-Match", e);
+    }
+    let mut resp = req.call().with_context(|| format!("connexion à {url}"))?;
+    let status = resp.status().as_u16();
+    if status == 304 {
+        return Ok(None);
+    }
+    let new_etag = resp.headers().get("etag").and_then(|v| v.to_str().ok()).map(str::to_string);
+    let body = resp.body_mut().read_to_string()?;
+    if !(200..300).contains(&status) {
+        if (status == 403 || status == 429) && body.contains("rate limit") {
+            bail!("limite de l'API GitHub atteinte, réessayez dans une heure");
+        }
+        bail!("{url} : HTTP {status}");
+    }
+    Ok(Some((body, new_etag)))
+}
+
+/// Releases publiées d'un dépôt, de la plus récente à la plus ancienne.
+/// En cas d'échec (limite atteinte, hors ligne), renvoie les dernières Releases connues si elles existent.
+pub fn releases(repo: &str) -> Result<Vec<Release>> {
+    let url = format!("https://api.github.com/repos/{repo}/releases?per_page=50");
+    let files = cache_files(repo);
+    let cached_body = files.as_ref().and_then(|(b, _)| std::fs::read_to_string(b).ok());
+    let cached_etag = files.as_ref().and_then(|(_, e)| std::fs::read_to_string(e).ok());
+    // Sans corps en cache, un 304 serait inutilisable : pas d'ETag dans ce cas.
+    let etag = cached_body.as_ref().and(cached_etag.as_deref());
+    match fetch_releases(&url, etag) {
+        Ok(None) => parse_releases(cached_body.as_deref().unwrap_or("[]")),
+        Ok(Some((body, new_etag))) => {
+            let list = parse_releases(&body)?;
+            if let Some((bf, ef)) = &files {
+                let _ = std::fs::create_dir_all(bf.parent().unwrap());
+                let _ = std::fs::write(bf, &body);
+                match new_etag {
+                    Some(e) => {
+                        let _ = std::fs::write(ef, e);
+                    }
+                    None => {
+                        let _ = std::fs::remove_file(ef);
+                    }
+                }
+            }
+            Ok(list)
+        }
+        Err(e) => match cached_body.as_deref().map(parse_releases) {
+            Some(Ok(list)) => Ok(list),
+            _ => Err(e),
+        },
+    }
 }
 
 /// Télécharge `url` vers `dest` (via un fichier `.part`), en appelant `progress(fait, total)`.
@@ -156,8 +217,43 @@ pub fn cmp_versions(a: &str, b: &str) -> std::cmp::Ordering {
 
 #[cfg(test)]
 mod tests {
-    use super::cmp_versions;
+    use super::{cmp_versions, fetch_releases};
     use std::cmp::Ordering::*;
+    use std::io::{Read, Write};
+
+    /// Petit serveur local : 200 + ETag, puis 304 si l'ETag est renvoyé, puis 403 « rate limit ».
+    #[test]
+    fn etag_et_limite() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for (i, stream) in listener.incoming().enumerate() {
+                let mut stream = stream.unwrap();
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap();
+                let req = String::from_utf8_lossy(&buf[..n]).to_lowercase();
+                let reply = match i {
+                    0 => "HTTP/1.1 200 OK\r\nETag: \"abc\"\r\nContent-Length: 2\r\nConnection: close\r\n\r\n[]".to_string(),
+                    1 => {
+                        assert!(req.contains("if-none-match: \"abc\""));
+                        "HTTP/1.1 304 Not Modified\r\nConnection: close\r\n\r\n".to_string()
+                    }
+                    _ => {
+                        let body = "API rate limit exceeded";
+                        format!("HTTP/1.1 403 Forbidden\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())
+                    }
+                };
+                stream.write_all(reply.as_bytes()).unwrap();
+            }
+        });
+        let url = format!("http://127.0.0.1:{port}/x");
+        let (body, etag) = fetch_releases(&url, None).unwrap().unwrap();
+        assert_eq!((body.as_str(), etag.as_deref()), ("[]", Some("\"abc\"")));
+        assert!(fetch_releases(&url, Some("\"abc\"")).unwrap().is_none());
+        let err = fetch_releases(&url, None).unwrap_err().to_string();
+        assert!(err.contains("limite"), "{err}");
+    }
+
     #[test]
     fn versions() {
         assert_eq!(cmp_versions("0.10.0", "0.9.9"), Greater);
