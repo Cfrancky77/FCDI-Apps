@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.1.4
+
+- Catalogue : David FIT (version PC, AppImage) ajouté.
+
 ## 0.1.3
 
 - Icône dans la zone de notification : fermer la fenêtre garde le lanceur actif (réglage « Rester actif dans la zone de notification à la fermeture de la fenêtre », activé par défaut) ; clic sur l'icône ou « Ouvrir FCDI Apps » rouvre la fenêtre, « Quitter » arrête le lanceur.
