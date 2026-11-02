@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 0.1.1
+
+- Logo FCDI : icône de l'application et en-tête (images provisoires, à remplacer par des versions de meilleure qualité).
+- Mise à jour du lanceur : bandeau « Nouvelle version » sur l'écran principal, bouton Relancer après la mise à jour, et mise à jour automatique si « Télécharger et installer les mises à jour automatiquement » est coché.
+- Limite de l'API GitHub : les Releases sont gardées sur disque et revérifiées par ETag (une réponse « rien de nouveau » ne compte pas dans la limite) ; en cas de limite atteinte ou hors ligne, les dernières versions connues restent affichées.
+
 ## 0.1.0
 
 Première version.
