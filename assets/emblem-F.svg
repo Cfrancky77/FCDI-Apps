@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-34 -8 512 414" width="512" height="414" role="img" aria-label="FCDI">
+  <defs>
+    <linearGradient id="chrome" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4f8fc"/>
+      <stop offset="0.45" stop-color="#8d9db0"/>
+      <stop offset="1" stop-color="#2b3a4e"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0.15" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#8fd0ff"/>
+      <stop offset="0.3" stop-color="#3f9fe6"/>
+      <stop offset="0.65" stop-color="#14589f"/>
+      <stop offset="1" stop-color="#061c42"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e6edf5"/>
+      <stop offset="0.5" stop-color="#7b8ea3"/>
+      <stop offset="1" stop-color="#1f2c3d"/>
+    </linearGradient>
+    <filter id="sh" x="-10%" y="-10%" width="125%" height="130%">
+      <feDropShadow dx="3" dy="6" stdDeviation="4" flood-color="#0a1830" flood-opacity=".45"/>
+    </filter>
+    <path id="F" d="M0 0H300L286 52H92V92H234L222 140H92V232H-74L0 170Z"/>
+  <linearGradient id="steel" gradientUnits="userSpaceOnUse" x1="-101" y1="0" x2="966" y2="0">
+      <stop offset="0" stop-color="#1b4f80"/><stop offset="0.30" stop-color="#1d5282"/><stop offset="0.62" stop-color="#9fbfdc"/><stop offset="0.85" stop-color="#ffffff"/><stop offset="1" stop-color="#dce8f4"/>
+    </linearGradient>
+  </defs>
+  <g filter="url(#sh)">
+    <!-- anneau ouvert en bas à droite -->
+    <path d="M360 99A190 165 0 1 0 304 351" fill="none" stroke="#17202e" stroke-width="32" stroke-linecap="round"/>
+    <path d="M360 99A190 165 0 1 0 304 351" fill="none" stroke="url(#rim)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M360 99A190 165 0 1 0 304 351" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="3" stroke-linecap="round" transform="translate(-1 -2)"/>
+    <!-- boucle intérieure du @ : fait le tour du F (droite et bas) -->
+    <path d="M404 120C452 196 414 296 318 326C282 338 250 338 212 334" fill="none" stroke="#17202e" stroke-width="24" stroke-linecap="round"/>
+    <path d="M404 120C452 196 414 296 318 326C282 338 250 338 212 334" fill="none" stroke="url(#rim)" stroke-width="14" stroke-linecap="round"/>
+    <!-- queue du @ : l'anneau se prolonge en s'effilant vers la droite -->
+    <path d="M292 340Q352 352 414 316Q372 378 296 366Z" fill="url(#chrome)" stroke="#17202e" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M298 344Q352 352 404 322Q356 352 300 352Z" fill="#fff" fill-opacity=".55"/>
+    <path d="M276 372Q312 386 350 372Q320 396 276 382Z" fill="url(#chrome)" stroke="#17202e" stroke-width="3.5" stroke-linejoin="round"/>
+    <!-- F : glyphe de la police du logo, style de la bannière -->
+    <g transform="translate(96 66) scale(.3125 -.3125) translate(0 -800)">
+      <path d="M966 799 871 552H625L660 639H515L452 484H657L598 334H394L325 161H412L393 117Q344 0 206 0H-101L66 166L269 677L160 800Z" transform="translate(16 -19)" fill="#10105a" stroke="#10105a" stroke-width="34" stroke-linejoin="miter"/>
+      <path d="M966 799 871 552H625L660 639H515L452 484H657L598 334H394L325 161H412L393 117Q344 0 206 0H-101L66 166L269 677L160 800Z" fill="url(#steel)" stroke="#a9b8d4" stroke-width="16" stroke-linejoin="miter" paint-order="stroke"/>
+    </g>
+  </g>
+</svg>
