@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.1.6
+
+- Icône : emblème « F » dans son @, redessiné en vectoriel d'après l'original (assets/emblem-F.svg).
+
 ## 0.1.5
 
 - Vrai logo FCDI : bannière haute définition et icône (roundel F) fournis par Franck.
