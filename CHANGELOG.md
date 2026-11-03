@@ -2,7 +2,7 @@
 
 ## 0.1.6
 
-- Icône : emblème « F » dans son @, redessiné en vectoriel d'après l'original (assets/emblem-F.svg).
+- Icône : emblème « F » dans son @, redessiné en vectoriel avec le F de la police du logo (assets/emblem-F.svg) ; bannière vectorielle (assets/banniere-FCDI.svg).
 
 ## 0.1.5
 
