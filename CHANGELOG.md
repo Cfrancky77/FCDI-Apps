@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.1.5
+
+- Vrai logo FCDI : bannière haute définition et icône (roundel F) fournis par Franck.
+
 ## 0.1.4
 
 - Catalogue : David FIT (version PC, AppImage) ajouté.
