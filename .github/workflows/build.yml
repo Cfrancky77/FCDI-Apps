@@ -32,10 +32,14 @@ jobs:
       - name: AppImage
         run: packaging/build-appimage.sh
 
+      # Artefact seulement hors main (sur main l'AppImage part dans la release), gardé 1 jour :
+      # le stockage Actions gratuit est limité à 0,5 Go.
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'push'
         with:
           name: FCDI_Apps-x86_64.AppImage
           path: FCDI_Apps-x86_64.AppImage
+          retention-days: 1
 
       # Sur main : publie une Release « vX.Y.Z » (version de Cargo.toml) si elle n'existe pas encore.
       - name: Release
