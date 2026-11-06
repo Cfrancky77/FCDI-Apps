@@ -25,6 +25,19 @@
       "icon": "https://raw.githubusercontent.com/Cfrancky77/FCDI-Apps/main/assets/icons/david-fit.png",
       "website": "https://github.com/Cfrancky77/DavidFIT-app",
       "color": "#007DC0"
+    },
+    {
+      "id": "audit-donnees-perso",
+      "name": "Audit",
+      "accent": " données perso",
+      "description": "Audit local de ses données en ligne : comptes, fuites connues, demandes RGPD",
+      "description_en": "Local audit of your online data: accounts, known leaks, GDPR requests",
+      "publisher": "FCDI",
+      "repo": "Cfrancky77/audit-donnees-perso",
+      "asset": "x86_64.AppImage",
+      "icon": "https://raw.githubusercontent.com/Cfrancky77/FCDI-Apps/main/assets/icons/audit-donnees-perso.png",
+      "website": "https://github.com/Cfrancky77/audit-donnees-perso",
+      "color": "#1F8A70"
     }
   ]
 }

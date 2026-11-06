@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.1.7
+
+- Catalogue : Audit données perso ajouté (la première Release du dépôt devra contenir un fichier *x86_64.AppImage).
+
 ## 0.1.6
 
 - Icône : emblème « F » dans son @, redessiné en vectoriel avec le F de la police du logo (assets/emblem-F.svg) ; bannière vectorielle (assets/banniere-FCDI.svg).
