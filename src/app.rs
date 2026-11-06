@@ -980,7 +980,7 @@ impl Launcher {
 
     fn row(&self, ui: &mut egui::Ui, app: &AppEntry, actions: &mut Vec<Action>) {
         let desc = if self.cfg.lang == Lang::En && !app.description_en.is_empty() { &app.description_en } else { &app.description };
-        let (badge_text, badge_color, version, _date) = self.status(app);
+        let (badge_text, badge_color, version, date) = self.status(app);
         let err = self
             .states
             .get(&app.id)
@@ -995,7 +995,7 @@ impl Launcher {
                 ui.set_width(ui.available_width());
                 // Colonnes de droite à largeur fixe : toutes les lignes sont alignées,
                 // quelle que soit la longueur de la description.
-                const RIGHT: f32 = 32.0 + 160.0 + 120.0 + 80.0 + 130.0 + 5.0 * 8.0;
+                const RIGHT: f32 = 32.0 + 160.0 + 120.0 + 110.0 + 80.0 + 130.0 + 6.0 * 8.0;
                 let left_w = (ui.available_width() - RIGHT).max(160.0);
                 ui.horizontal(|ui| {
                     ui.allocate_ui_with_layout(Vec2::new(left_w, 44.0), Layout::left_to_right(Align::Center), |ui| {
@@ -1009,9 +1009,10 @@ impl Launcher {
                             }
                         });
                     });
-                    // Nom | Version | Taille | Statut | actions
+                    // Nom | Version | Taille | Date | Statut | actions
                     ui.add_sized([130.0, 20.0], egui::Label::new(mono(&version, 13.0).color(strong(ui))));
                     ui.add_sized([80.0, 20.0], egui::Label::new(mono(&size, 12.0).color(muted(ui))));
+                    ui.add_sized([110.0, 20.0], egui::Label::new(RichText::new(&date).color(muted(ui))));
                     ui.allocate_ui_with_layout(Vec2::new(120.0, 24.0), Layout::left_to_right(Align::Center), |ui| {
                         badge(ui, badge_text, badge_color)
                     });
