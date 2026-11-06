@@ -20,22 +20,26 @@ Même si le catalogue ou une Release était piraté, il faudrait en plus la **cl
 
 ## La clé de signature
 
-- Création (une fois) : `tools/gen-key.sh` (clé privée dans `~/fcdi-signing.pem`, clé publique affichée).
-  La clé privée reste **hors ligne, sur votre ordinateur**, et doit être sauvegardée. Ne la mettez ni sur GitHub,
-  ni dans un secret d'Actions, ni dans une conversation.
-- Publier une version : la CI crée la Release, puis vous signez : `tools/publish-signature.sh <dépôt> <id> <étiquette> <fichier>`
-  (télécharge le fichier de la Release, affiche son SHA-256, demande confirmation, signe, ajoute le `.sig`).
+- Création (une fois) : `tools/gen-key.sh` (clé privée dans `~/fcdi-signing.pem`, clé publique affichée et placée dans `keys/signing.pub`).
+  Sauvegardez la clé privée ; ne l'envoyez jamais dans une conversation ni dans un dépôt.
+- **Signature automatique (mode actuel)** : le contenu du fichier `.pem` est enregistré comme secret GitHub
+  `FCDI_SIGNING_KEY` dans chaque dépôt qui publie des AppImage (Settings > Secrets and variables > Actions).
+  La CI signe le fichier avant de créer la Release et joint le `.sig`. Sans le secret, la publication échoue exprès.
+- **Signature à la main (option plus sûre)** : ne pas mettre la clé dans GitHub, publier la Release puis lancer
+  `tools/publish-signature.sh <dépôt> <id> <étiquette> <fichier>` sur votre ordinateur. Un piratage du compte GitHub ne
+  permet alors pas de signer.
 - Tant que le `.sig` n'est pas publié, le lanceur n'offre pas la nouvelle version.
 - Clé perdue ou compromise : publier un nouveau lanceur avec une nouvelle clé publique dans `keys/signing.pub`
-  (plusieurs clés peuvent coexister, une par ligne pendant la transition). Les lanceurs déjà installés ne pourront pas
-  se mettre à jour automatiquement vers une clé qu'ils ne connaissent pas : prévoir une réinstallation manuelle.
+  (plusieurs clés peuvent coexister, une par ligne pendant la transition), et supprimer l'ancien secret. Les lanceurs déjà
+  installés ne pourront pas se mettre à jour automatiquement vers une clé qu'ils ne connaissent pas : prévoir une
+  réinstallation manuelle.
 
 ## Limites
 
 - La signature prouve que vous avez signé ce fichier, pas qu'il est exempt de défaut : relisez ce que vous publiez.
-- Si le compte GitHub est piraté avant la signature, l'attaquant peut remplacer le fichier de la Release : vérifiez
-  l'empreinte affichée par `publish-signature.sh` (comparez avec celle du build dans les logs de la CI, ou signez
-  un fichier construit sur votre machine).
+- Avec la clé en secret GitHub, quelqu'un qui contrôle le compte ou le dépôt (ou qui y pousse un workflow) peut faire signer
+  un faux fichier : la signature protège alors contre un fichier corrompu ou remplacé en route, pas contre un compte
+  piraté. La signature à la main ferme ce cas (et vérifiez alors l'empreinte affichée par `publish-signature.sh`).
 - Protégez le compte GitHub (authentification à deux facteurs, protection de `main`, jetons limités à un dépôt).
 
 ## Signaler un problème

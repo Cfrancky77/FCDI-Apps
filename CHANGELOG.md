@@ -7,6 +7,7 @@
 - Les versions sans signature ne sont plus proposées (liste figée d'exceptions : Luminux IA, le temps qu'il signe).
 - Catalogue durci : entrées invalides écartées, textes nettoyés, icônes et sites en https seulement ; https obligatoire (redirections comprises).
 - Outils : `tools/gen-key.sh`, `tools/sign.sh`, `tools/publish-signature.sh` ; documentation dans `SECURITY.md`.
+- CI : signature automatique avec le secret `FCDI_SIGNING_KEY` ; la publication échoue si le secret est absent.
 
 ## 0.1.7
 

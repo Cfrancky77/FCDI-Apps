@@ -41,6 +41,23 @@ jobs:
           path: FCDI_Apps-x86_64.AppImage
           retention-days: 1
 
+      # Signature Ed25519 (clé privée dans le secret FCDI_SIGNING_KEY : contenu du fichier .pem).
+      # Sans ce secret, aucune version ne peut être publiée : le lanceur refuse les fichiers non signés.
+      - name: Signature
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          FCDI_SIGNING_KEY: ${{ secrets.FCDI_SIGNING_KEY }}
+        run: |
+          if [ -z "$FCDI_SIGNING_KEY" ]; then
+            echo "::error::Secret FCDI_SIGNING_KEY absent : ajoutez-le (Settings > Secrets and variables > Actions), voir SECURITY.md."
+            exit 1
+          fi
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          KEYFILE="$(mktemp)"
+          trap 'rm -f "$KEYFILE"' EXIT
+          printf '%s\n' "$FCDI_SIGNING_KEY" > "$KEYFILE"
+          tools/sign.sh fcdi-apps "v$VERSION" FCDI_Apps-x86_64.AppImage "$KEYFILE"
+
       # Sur main : publie une Release « vX.Y.Z » (version de Cargo.toml) si elle n'existe pas encore.
       - name: Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -52,6 +69,6 @@ jobs:
             echo "La release v$VERSION existe déjà : augmenter la version dans Cargo.toml pour en publier une nouvelle."
           else
             NOTES=$(awk "/^## $VERSION/{f=1;next} /^## /{f=0} f" CHANGELOG.md)
-            gh release create "v$VERSION" FCDI_Apps-x86_64.AppImage \
+            gh release create "v$VERSION" FCDI_Apps-x86_64.AppImage FCDI_Apps-x86_64.AppImage.sig \
               --title "FCDI Apps v$VERSION" --notes "${NOTES:-FCDI Apps v$VERSION}"
           fi
