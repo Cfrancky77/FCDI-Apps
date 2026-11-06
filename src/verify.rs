@@ -99,6 +99,12 @@ mod tests {
         assert_eq!(keys.len(), 1);
     }
 
+    /// Garde-fou : une version du lanceur sans clé publique ne pourrait plus rien installer ni se mettre à jour.
+    #[test]
+    fn cle_publique_renseignee() {
+        assert!(!parse_keys(KEYS).is_empty(), "keys/signing.pub ne contient aucune clé publique valide");
+    }
+
     #[test]
     fn sans_signature() {
         assert!(check_download("luminux-ia", "v1", "a", "00", None).is_ok());
