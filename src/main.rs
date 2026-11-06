@@ -7,6 +7,7 @@ mod i18n;
 mod net;
 mod system;
 mod tray;
+mod verify;
 
 fn main() -> eframe::Result {
     let minimized = std::env::args().any(|a| a == "--minimized");

@@ -7,8 +7,10 @@ use std::path::Path;
 
 const UA: &str = concat!("FCDI-Apps/", env!("CARGO_PKG_VERSION"));
 
-fn agent() -> ureq::Agent {
+fn agent(https_only: bool) -> ureq::Agent {
     ureq::Agent::config_builder()
+        // Jamais de repli en http (ni lors d'une redirection) : sinon un intermédiaire pourrait altérer les fichiers.
+        .https_only(https_only)
         .timeout_connect(Some(std::time::Duration::from_secs(15)))
         .http_status_as_error(false)
         // Certificats du système (comme le navigateur), utile derrière un proxy d'entreprise.
@@ -18,7 +20,9 @@ fn agent() -> ureq::Agent {
 }
 
 fn request(url: &str) -> ureq::RequestBuilder<ureq::typestate::WithoutBody> {
-    let mut req = agent().get(url).header("User-Agent", UA);
+    // Le http n'est toléré que vers la machine locale (tests).
+    let https_only = !url.starts_with("http://127.0.0.1");
+    let mut req = agent(https_only).get(url).header("User-Agent", UA);
     // Jeton facultatif pour dépasser la limite de 60 requêtes par heure de l'API GitHub.
     if url.starts_with("https://api.github.com/") {
         req = req.header("Accept", "application/vnd.github+json");
@@ -148,7 +152,19 @@ pub fn releases(repo: &str) -> Result<Vec<Release>> {
 }
 
 /// Télécharge `url` vers `dest` (via un fichier `.part`), en appelant `progress(fait, total)`.
-pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> Result<()> {
+pub fn download(url: &str, dest: &Path, progress: impl FnMut(u64, u64)) -> Result<()> {
+    download_checked(url, dest, progress, |_| Ok(())).map(|_| ())
+}
+
+/// Comme `download`, mais le fichier n'est mis à sa place définitive qu'après `check(empreinte SHA-256)` :
+/// si la vérification échoue, rien n'est installé et le fichier partiel est supprimé.
+pub fn download_checked(
+    url: &str,
+    dest: &Path,
+    mut progress: impl FnMut(u64, u64),
+    check: impl FnOnce(&str) -> Result<()>,
+) -> Result<String> {
+    use sha2::{Digest, Sha256};
     let mut resp = request(url).call().with_context(|| format!("connexion à {url}"))?;
     if !resp.status().is_success() {
         bail!("téléchargement : HTTP {}", resp.status().as_u16());
@@ -165,25 +181,39 @@ pub fn download(url: &str, dest: &Path, mut progress: impl FnMut(u64, u64)) -> R
     }
     let mut file = std::fs::File::create(&part).with_context(|| format!("écriture de {}", part.display()))?;
     let mut reader = resp.body_mut().with_config().limit(u64::MAX).reader();
+    let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 256 * 1024];
     let mut done = 0u64;
-    loop {
-        let n = reader.read(&mut buf)?;
-        if n == 0 {
-            break;
+    let result = (|| -> Result<String> {
+        loop {
+            let n = reader.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n])?;
+            hasher.update(&buf[..n]);
+            done += n as u64;
+            progress(done, total);
         }
-        file.write_all(&buf[..n])?;
-        done += n as u64;
-        progress(done, total);
-    }
-    file.sync_all()?;
+        file.sync_all()?;
+        if total > 0 && done != total {
+            bail!("téléchargement incomplet ({done} / {total} octets)");
+        }
+        let hex: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+        check(&hex)?;
+        Ok(hex)
+    })();
     drop(file);
-    if total > 0 && done != total {
-        let _ = std::fs::remove_file(&part);
-        bail!("téléchargement incomplet ({done} / {total} octets)");
+    match result {
+        Ok(hex) => {
+            std::fs::rename(&part, dest)?;
+            Ok(hex)
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&part);
+            Err(e)
+        }
     }
-    std::fs::rename(&part, dest)?;
-    Ok(())
 }
 
 /// Compare deux versions « 1.2.3 », « 0.4.0-beta.2 »… (numérique, partie par partie).
@@ -252,6 +282,32 @@ mod tests {
         assert!(fetch_releases(&url, Some("\"abc\"")).unwrap().is_none());
         let err = fetch_releases(&url, None).unwrap_err().to_string();
         assert!(err.contains("limite"), "{err}");
+    }
+
+    /// Un fichier refusé par la vérification n'est jamais mis en place ; un fichier accepté l'est, avec son SHA-256.
+    #[test]
+    fn telechargement_verifie() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf).unwrap();
+                stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello").unwrap();
+            }
+        });
+        let url = format!("http://127.0.0.1:{port}/f");
+        let dir = std::env::temp_dir().join(format!("fcdi-test-{port}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let dest = dir.join("app.AppImage");
+        let refuse = super::download_checked(&url, &dest, |_, _| {}, |_| anyhow::bail!("refusé"));
+        assert!(refuse.is_err());
+        assert!(!dest.exists() && !dest.with_extension("part").exists());
+        let sha = super::download_checked(&url, &dest, |_, _| {}, |_| Ok(())).unwrap();
+        assert_eq!(sha, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+        assert_eq!(std::fs::read(&dest).unwrap(), b"hello");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
