@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.2.1
+
+- Le poids du fichier à télécharger est affiché dans la liste et sur les cartes (Ko, Mo ou Go).
+
 ## 0.2.0
 
 - Sécurité : les AppImage (applications et lanceur) ne sont installés que si leur signature Ed25519 est valide

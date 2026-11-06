@@ -94,7 +94,15 @@ fn short_date(iso: &str, lang: Lang) -> String {
 }
 
 fn human_size(b: u64) -> String {
-    format!("{:.0} Mo", b as f64 / 1_048_576.0)
+    const KO: f64 = 1024.0;
+    let b = b as f64;
+    if b >= KO * KO * KO {
+        format!("{:.1} Go", b / (KO * KO * KO))
+    } else if b >= KO * KO {
+        format!("{:.0} Mo", b / (KO * KO))
+    } else {
+        format!("{:.0} Ko", b / KO)
+    }
 }
 
 fn apply_theme(ctx: &egui::Context, theme: Theme) {
@@ -957,6 +965,19 @@ impl Launcher {
         }
     }
 
+    /// Poids du fichier de la dernière version proposée (vide si inconnu).
+    fn size_label(&self, app: &AppEntry) -> String {
+        self.states
+            .get(&app.id)
+            .and_then(|s| s.releases.as_ref())
+            .and_then(|r| r.as_ref().ok())
+            .and_then(|r| self.latest(r, &app.asset, &app.id))
+            .and_then(|r| r.asset_matching(&app.asset))
+            .filter(|a| a.size > 0)
+            .map(|a| human_size(a.size))
+            .unwrap_or_default()
+    }
+
     fn row(&self, ui: &mut egui::Ui, app: &AppEntry, actions: &mut Vec<Action>) {
         let desc = if self.cfg.lang == Lang::En && !app.description_en.is_empty() { &app.description_en } else { &app.description };
         let (badge_text, badge_color, version, date) = self.status(app);
@@ -984,6 +1005,9 @@ impl Launcher {
                         self.menu(ui, app, actions);
                         self.main_button(ui, app, 160.0, actions);
                         let wide = ui.available_width() > 520.0;
+                        if ui.available_width() > 420.0 {
+                            ui.add_sized([70.0, 20.0], egui::Label::new(mono(self.size_label(app), 12.0).color(muted(ui))));
+                        }
                         if wide {
                             ui.add_sized([110.0, 20.0], egui::Label::new(RichText::new(&app.publisher).color(muted(ui))));
                             ui.add_sized([110.0, 20.0], egui::Label::new(RichText::new(&date).color(muted(ui))));
@@ -1013,7 +1037,9 @@ impl Launcher {
                     });
                     app_name(ui, app, 16.0);
                     ui.label(RichText::new(desc).size(12.0).color(muted(ui)));
-                    ui.label(mono(&version, 12.0).color(strong(ui)));
+                    let size = self.size_label(app);
+                    let line_text = if size.is_empty() { version.clone() } else { format!("{version}  ·  {size}") };
+                    ui.label(mono(line_text, 12.0).color(strong(ui)));
                     ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
                         ui.horizontal(|ui| {
                             self.main_button(ui, app, 180.0, actions);
