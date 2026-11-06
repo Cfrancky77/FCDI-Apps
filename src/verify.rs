@@ -13,7 +13,7 @@ const KEYS: &str = include_str!("../keys/signing.pub");
 
 /// Applications dont les Releases ne sont pas encore signées. Cette liste est figée dans le lanceur :
 /// seule une nouvelle version signée du lanceur peut la modifier (retirer un identifiant dès que l'application signe).
-pub const LEGACY_UNSIGNED: &[&str] = &["luminux-ia"];
+pub const LEGACY_UNSIGNED: &[&str] = &[];
 
 fn parse_keys(text: &str) -> Vec<VerifyingKey> {
     let b64 = base64::engine::general_purpose::STANDARD;
@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn sans_signature() {
-        assert!(check_download("luminux-ia", "v1", "a", "00", None).is_ok());
+        assert!(check_download("luminux-ia", "v1", "a", "00", None).is_err());
         assert!(check_download("david-fit", "v1", "a", "00", None).is_err());
     }
 

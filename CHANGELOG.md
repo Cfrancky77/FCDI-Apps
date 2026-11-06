@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.2.3
+
+- Luminux IA est signée (à partir de la v0.38.0) : l'exception `LEGACY_UNSIGNED` est retirée. Les versions de Luminux IA sans fichier `.sig` (avant 0.38.0) ne sont plus proposées.
+
 ## 0.2.2
 
 - Liste alignée : colonnes à largeur fixe dans l'ordre Nom / Version / Taille / Date / Statut / actions ; colonne éditeur retirée (c'est toujours FCDI).
