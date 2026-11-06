@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.2.2
+
+- Liste alignée : colonnes à largeur fixe dans l'ordre Nom / Version / Taille / Date / Statut / actions ; colonne éditeur retirée (c'est toujours FCDI).
+
 ## 0.2.1
 
 - Le poids du fichier à télécharger est affiché dans la liste et sur les cartes (Ko, Mo ou Go).

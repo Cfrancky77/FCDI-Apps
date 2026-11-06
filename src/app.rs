@@ -987,36 +987,37 @@ impl Launcher {
             .and_then(|s| s.releases.as_ref())
             .and_then(|r| r.as_ref().err())
             .cloned();
+        let size = self.size_label(app);
         Frame::new()
             .inner_margin(Margin::symmetric(14, 12))
             .stroke(Stroke::new(1.0, line(ui)))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
+                // Colonnes de droite à largeur fixe : toutes les lignes sont alignées,
+                // quelle que soit la longueur de la description.
+                const RIGHT: f32 = 32.0 + 160.0 + 120.0 + 110.0 + 80.0 + 130.0 + 6.0 * 8.0;
+                let left_w = (ui.available_width() - RIGHT).max(160.0);
                 ui.horizontal(|ui| {
-                    app_icon(ui, app, self.states.get(&app.id).and_then(|s| s.icon.as_ref()), 40.0);
-                    ui.vertical(|ui| {
-                        app_name(ui, app, 16.0);
-                        ui.label(RichText::new(desc).size(12.0).color(muted(ui)));
-                        if let Some(e) = &err {
-                            ui.label(RichText::new(e).size(11.0).color(Color32::from_rgb(0xef, 0x44, 0x44)));
-                        }
-                    });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        self.menu(ui, app, actions);
-                        self.main_button(ui, app, 160.0, actions);
-                        let wide = ui.available_width() > 520.0;
-                        if ui.available_width() > 420.0 {
-                            ui.add_sized([70.0, 20.0], egui::Label::new(mono(self.size_label(app), 12.0).color(muted(ui))));
-                        }
-                        if wide {
-                            ui.add_sized([110.0, 20.0], egui::Label::new(RichText::new(&app.publisher).color(muted(ui))));
-                            ui.add_sized([110.0, 20.0], egui::Label::new(RichText::new(&date).color(muted(ui))));
-                        }
-                        ui.add_sized([120.0, 20.0], egui::Label::new(mono(&version, 13.0).color(strong(ui))));
-                        ui.allocate_ui_with_layout(Vec2::new(120.0, 24.0), Layout::left_to_right(Align::Center), |ui| {
-                            badge(ui, badge_text, badge_color)
+                    ui.allocate_ui_with_layout(Vec2::new(left_w, 44.0), Layout::left_to_right(Align::Center), |ui| {
+                        ui.set_width(left_w);
+                        app_icon(ui, app, self.states.get(&app.id).and_then(|s| s.icon.as_ref()), 40.0);
+                        ui.vertical(|ui| {
+                            app_name(ui, app, 16.0);
+                            ui.add(egui::Label::new(RichText::new(desc).size(12.0).color(muted(ui))).truncate());
+                            if let Some(e) = &err {
+                                ui.label(RichText::new(e).size(11.0).color(Color32::from_rgb(0xef, 0x44, 0x44)));
+                            }
                         });
                     });
+                    // Nom | Version | Taille | Date | Statut | actions
+                    ui.add_sized([130.0, 20.0], egui::Label::new(mono(&version, 13.0).color(strong(ui))));
+                    ui.add_sized([80.0, 20.0], egui::Label::new(mono(&size, 12.0).color(muted(ui))));
+                    ui.add_sized([110.0, 20.0], egui::Label::new(RichText::new(&date).color(muted(ui))));
+                    ui.allocate_ui_with_layout(Vec2::new(120.0, 24.0), Layout::left_to_right(Align::Center), |ui| {
+                        badge(ui, badge_text, badge_color)
+                    });
+                    self.main_button(ui, app, 160.0, actions);
+                    self.menu(ui, app, actions);
                 });
             });
     }
