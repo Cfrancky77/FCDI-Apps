@@ -6,6 +6,7 @@ use crate::i18n::{Lang, Tr, tr};
 use crate::net::{self, Release};
 use crate::system;
 use crate::tray::{self, TrayCmd};
+use crate::verify;
 use eframe::egui::{
     self, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Sense, Stroke, TextureHandle, Vec2,
 };
@@ -16,6 +17,7 @@ use std::time::{Duration, Instant};
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const SELF_REPO: &str = "Cfrancky77/FCDI-Apps";
 const SELF_ASSET: &str = "FCDI_Apps-x86_64.AppImage";
+const SELF_ID: &str = "fcdi-apps";
 const CHECK_EVERY: Duration = Duration::from_secs(6 * 3600);
 
 enum Msg {
@@ -215,11 +217,12 @@ impl Launcher {
     }
 
     /// Dernière Release utilisable (avec le bon fichier, préversions selon le réglage).
-    fn latest<'a>(&self, releases: &'a [Release], asset: &str) -> Option<&'a Release> {
+    fn latest<'a>(&self, releases: &'a [Release], asset: &str, id: &str) -> Option<&'a Release> {
         releases
             .iter()
             .filter(|r| self.cfg.prereleases || !r.prerelease)
-            .find(|r| r.asset_matching(asset).is_some())
+            // Une version sans signature n'est jamais proposée (sauf applications de la liste « non signées »).
+            .find(|r| r.asset_matching(asset).is_some_and(|a| is_signed(r, a, id)))
     }
 
     fn app(&self, id: &str) -> Option<AppEntry> {
@@ -229,12 +232,16 @@ impl Launcher {
     fn has_update(&self, app: &AppEntry) -> Option<Release> {
         let inst = self.cfg.installed.get(&app.id)?;
         let rels = self.states.get(&app.id)?.releases.as_ref()?.as_ref().ok()?;
-        let latest = self.latest(rels, &app.asset)?;
+        let latest = self.latest(rels, &app.asset, &app.id)?;
         (net::cmp_versions(&latest.version(), &inst.version) == std::cmp::Ordering::Greater).then(|| latest.clone())
     }
 
     fn install(&mut self, app: &AppEntry, rel: &Release, pinned: bool) {
         let Some(asset) = rel.asset_matching(&app.asset).cloned() else { return };
+        if !safe_file_name(&asset.name) {
+            self.dialog = Some(Dialog::Error(format!("nom de fichier refusé : {}", asset.name)));
+            return;
+        }
         let st = self.states.entry(app.id.clone()).or_default();
         if st.progress.is_some() {
             return;
@@ -246,15 +253,23 @@ impl Launcher {
             None => self.cfg.install_dir.join(&asset.name),
         };
         let (id, version, tag) = (app.id.clone(), rel.version(), rel.tag_name.clone());
+        let rel = rel.clone();
         self.spawn(move |tx| {
             let res = (|| -> anyhow::Result<Installed> {
                 let mut last = Instant::now();
-                net::download(&asset.browser_download_url, &dest, |d, t| {
-                    if last.elapsed() > Duration::from_millis(150) {
-                        last = Instant::now();
-                        let _ = tx.send(Msg::Progress(id.clone(), d, t));
-                    }
-                })?;
+                let sig = fetch_sig(&rel, &asset.name);
+                // Le fichier n'est mis en place qu'après vérification de sa signature.
+                net::download_checked(
+                    &asset.browser_download_url,
+                    &dest,
+                    |d, t| {
+                        if last.elapsed() > Duration::from_millis(150) {
+                            last = Instant::now();
+                            let _ = tx.send(Msg::Progress(id.clone(), d, t));
+                        }
+                    },
+                    |sha| verify::check_download(&id, &rel.tag_name, &asset.name, sha, sig.as_deref()),
+                )?;
                 system::make_executable(&dest)?;
                 Ok(Installed { version, tag, path: dest, pinned })
             })();
@@ -280,7 +295,7 @@ impl Launcher {
 
     fn update_self(&mut self) {
         let Some(Ok(rels)) = &self.self_releases else { return };
-        let Some(rel) = self.latest(rels, SELF_ASSET).cloned() else { return };
+        let Some(rel) = self.latest(rels, SELF_ASSET, SELF_ID).cloned() else { return };
         let Some(asset) = rel.asset_matching(SELF_ASSET).cloned() else { return };
         let Some(dest) = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from) else {
             system::open_url(&rel.html_url);
@@ -288,8 +303,11 @@ impl Launcher {
         };
         self.self_progress = Some((0, asset.size));
         self.spawn(move |tx| {
-            let res = net::download(&asset.browser_download_url, &dest, |_, _| {})
-                .and_then(|_| system::make_executable(&dest));
+            let sig = fetch_sig(&rel, &asset.name);
+            let res = net::download_checked(&asset.browser_download_url, &dest, |_, _| {}, |sha| {
+                verify::check_download(SELF_ID, &rel.tag_name, &asset.name, sha, sig.as_deref())
+            })
+            .and_then(|_| system::make_executable(&dest));
             let _ = tx.send(Msg::SelfUpdated(res.map_err(|e| format!("{e:#}"))));
         });
     }
@@ -390,8 +408,25 @@ impl Launcher {
 
     fn self_latest(&self) -> Option<Release> {
         let rels = self.self_releases.as_ref()?.as_ref().ok()?;
-        self.latest(rels, SELF_ASSET).cloned()
+        self.latest(rels, SELF_ASSET, SELF_ID).cloned()
     }
+}
+
+/// Contenu du fichier `<fichier>.sig` publié dans la Release, s'il existe.
+fn fetch_sig(rel: &Release, asset_name: &str) -> Option<String> {
+    let want = format!("{asset_name}.sig");
+    let a = rel.assets.iter().find(|a| a.name == want)?;
+    net::get_string(&a.browser_download_url).ok()
+}
+
+/// La Release contient-elle la signature du fichier (ou l'application est-elle dans la liste « non signées ») ?
+fn is_signed(rel: &Release, asset: &net::Asset, id: &str) -> bool {
+    verify::LEGACY_UNSIGNED.contains(&id) || rel.assets.iter().any(|s| s.name == format!("{}.sig", asset.name))
+}
+
+/// Nom de fichier simple : pas de séparateur de dossier ni de « .. ».
+fn safe_file_name(name: &str) -> bool {
+    !name.is_empty() && !name.contains(['/', '\\', '\0']) && name != "." && name != ".."
 }
 
 /// Logo FCDI de l'en-tête (fichier fourni par Franck, à remplacer par une version de meilleure qualité).
@@ -799,7 +834,7 @@ impl Launcher {
         let latest = st
             .and_then(|s| s.releases.as_ref())
             .and_then(|r| r.as_ref().ok())
-            .and_then(|r| self.latest(r, &app.asset))
+            .and_then(|r| self.latest(r, &app.asset, &app.id))
             .cloned();
         if let Some((d, total)) = st.and_then(|s| s.progress) {
             let frac = if total > 0 { d as f32 / total as f32 } else { 0.0 };
@@ -839,7 +874,7 @@ impl Launcher {
             .get(&app.id)
             .and_then(|s| s.releases.as_ref())
             .and_then(|r| r.as_ref().ok())
-            .and_then(|r| self.latest(r, &app.asset))
+            .and_then(|r| self.latest(r, &app.asset, &app.id))
             .cloned();
         let btn = egui::Button::new(RichText::new("…").size(14.0)).min_size(Vec2::new(34.0, 32.0)).corner_radius(1);
         egui::containers::menu::MenuButton::from_button(btn).ui(ui, |ui| {
@@ -903,7 +938,7 @@ impl Launcher {
         let latest = st
             .and_then(|s| s.releases.as_ref())
             .and_then(|r| r.as_ref().ok())
-            .and_then(|r| self.latest(r, &app.asset));
+            .and_then(|r| self.latest(r, &app.asset, &app.id));
         let date = latest.and_then(|r| r.published_at.as_deref()).map(|d| short_date(d, self.cfg.lang)).unwrap_or_default();
         match self.cfg.installed.get(&app.id) {
             Some(i) if self.has_update(app).is_some() => (
@@ -1037,7 +1072,7 @@ impl Launcher {
                                 ui.label(RichText::new(t.pinned_note).size(11.0).color(muted(ui)));
                             }
                             egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
-                                let latest_tag = self.latest(rels, &app.asset).map(|r| r.tag_name.clone());
+                                let latest_tag = self.latest(rels, &app.asset, &app.id).map(|r| r.tag_name.clone());
                                 for rel in rels.iter().filter(|r| self.cfg.prereleases || !r.prerelease || notes) {
                                     let Some(asset) = rel.asset_matching(&app.asset) else { continue };
                                     ui.horizontal(|ui| {

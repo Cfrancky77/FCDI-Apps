@@ -1,5 +1,18 @@
 # Journal des versions
 
+## 0.2.0
+
+- Sécurité : les AppImage (applications et lanceur) ne sont installés que si leur signature Ed25519 est valide
+  (fichier `.sig` dans la Release, clé publique dans `keys/signing.pub`) ; empreinte SHA-256 vérifiée avant mise en place.
+- Les versions sans signature ne sont plus proposées (liste figée d'exceptions : Luminux IA, le temps qu'il signe).
+- Catalogue durci : entrées invalides écartées, textes nettoyés, icônes et sites en https seulement ; https obligatoire (redirections comprises).
+- Outils : `tools/gen-key.sh`, `tools/sign.sh`, `tools/publish-signature.sh` ; documentation dans `SECURITY.md`.
+- CI : signature automatique avec le secret `FCDI_SIGNING_KEY` ; la publication échoue si le secret est absent.
+
+## 0.1.7
+
+- Catalogue : Audit données perso ajouté (la première Release du dépôt devra contenir un fichier *x86_64.AppImage).
+
 ## 0.1.6
 
 - Icône : emblème « F » dans son @, redessiné en vectoriel avec le F de la police du logo (assets/emblem-F.svg) ; bannière vectorielle (assets/banniere-FCDI.svg).
