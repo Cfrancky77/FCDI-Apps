@@ -92,6 +92,15 @@ mod tests {
     }
 
     #[test]
+    fn format_du_message() {
+        // Doit rester identique à tools/sign.sh et au workflow desktop.yml de David FIT.
+        assert_eq!(
+            message("david-fit", "v0.1.37", "DavidFIT-x86_64.AppImage", "abc"),
+            b"FCDI-Apps signature v1\ndavid-fit\nv0.1.37\nDavidFIT-x86_64.AppImage\nabc\n".to_vec()
+        );
+    }
+
+    #[test]
     fn fichier_de_cles() {
         let b64 = base64::engine::general_purpose::STANDARD;
         let pk = b64.encode(key().verifying_key().to_bytes());
